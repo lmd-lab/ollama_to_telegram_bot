@@ -2,7 +2,7 @@
 
 A small Python script that queries an LLM via Ollama and sends the response to a Telegram bot.
 
-Designed for cron-based automation.
+Designed for automation.
 
 Typical use cases:
 - motivational messages
