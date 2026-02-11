@@ -21,15 +21,13 @@ def get_prompt() -> str:
     :rtype: str
     """
     prompt = os.getenv("OLLAMA_PROMPT")
-    if prompt and prompt.strip():
-        return prompt
-
-    return (
-        "Dies ist ein Fallback-Prompt. Antworte kurz und neutral."
-    )
+    if not prompt or not prompt.strip():
+        raise EnvironmentError("OLLAMA_PROMPT is missing in .env file")
+    return prompt
 
 PROMPT = get_prompt()
 
+print(PROMPT)
 
 def ask_ollama(prompt: str) -> str:
     """
@@ -55,16 +53,16 @@ def ask_ollama(prompt: str) -> str:
 
         answer = data.get("response", "").strip()
         if not answer or not answer.strip():
-            return "Modell hat keine Antwort geliefert."
+            return "Error: Model returned an empty response."
 
         return answer
 
     except requests.exceptions.Timeout:
-        return "Modell Timeout."
+        return "Error: Ollama request timed out (60s)."
     except requests.exceptions.RequestException as e:
-        return f"Modell Fehler: {e}"
+        return f"Error: Request failed - {e}"
     except ValueError:
-        return "Ungültige JSON-Antwort vom Modell."
+        return "Error: Received invalid JSON or missing 'response' field."
 
 
 
@@ -87,16 +85,19 @@ def send_telegram_message(text: str):
 
     data = response.json()
     if not data.get("ok"):
-        raise RuntimeError(f"Telegram Fehler: {data}")
+        raise RuntimeError(f"Telegram Error: {data}")
 
 
 def main():
     answer = ask_ollama(PROMPT)
 
+    if answer.startswith("Error:"):
+        print(f"Ollama issue detected: {answer}")
+
     try:
         send_telegram_message(answer)
     except Exception as e:
-        print("Telegram konnte nicht senden:", e)
+        print(f"Failed to send Telegram message: {e}")
 
 
 if __name__ == "__main__":
