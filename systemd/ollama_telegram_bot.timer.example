@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Ollama Telegram Bot every 2 hours between 08:00 and 00:00
+
+[Timer]
+OnCalendar=*-*-* 08,10,12,14,16,18,20,22,00:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

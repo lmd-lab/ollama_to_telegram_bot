@@ -1,0 +1,15 @@
+[Unit]
+Description=Ollama Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=your_user_name
+Group=your_group
+WorkingDirectory=/absolute/path/to/your/project
+EnvironmentFile=/absolute/path/to/your/project/.env
+ExecStart=/absolute/path/to/.venv/bin/python /absolute/path/to/main.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
