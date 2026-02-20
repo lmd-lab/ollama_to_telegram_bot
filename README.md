@@ -10,6 +10,10 @@ Typical use cases:
 - reminders
 - random thoughts
 
+## Prerequisites
+- A running [Ollama](https://ollama.com) instance
+- A Telegram bot token (create one via [@BotFather](https://t.me/BotFather))
+- Your Telegram chat ID (get it via [@userinfobot](https://t.me/userinfobot))
 
 ## Configuration
 
@@ -19,8 +23,8 @@ Create a `.env` file with the following variables:
 OLLAMA_URL=http://localhost:11434/api/generate
 OLLAMA_MODEL=llama3.2:1b
 OLLAMA_PROMPT=Send a short, motivating message.
-TELEGRAM_TOKEN=your_bot_token_here
-TELEGRAM_CHAT_ID=your_chat_id_here
+TELEGRAM_TOKEN=your_bot_token_here # Get token from https://t.me/BotFather
+TELEGRAM_CHAT_ID=your_chat_id_here # Get your ID from https://t.me/userinfobot
 ```
 
 ## Setup
