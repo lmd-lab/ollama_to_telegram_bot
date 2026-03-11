@@ -16,16 +16,20 @@ Typical use cases:
    - random thoughts
 
 ## Project Structure
-
+```text
 .
 ├── bot/
 │   ├── chat_bot.py      # Main interactive bot
 │   └── reminder.py      # Scheduled reminder script
 ├── logs/                # Local log files (ignored by git)
-├── .env                 # Local configuration
+├── systemd/             # Service & Timer templates
+├── .env                 # Local configuration  (API keys, etc.)
 ├── .gitignore           # Keeps your secrets safe
-└── systemd/             # Service & Timer templates
+├── requirements.txt     # Python dependencies
+├── LICENSE              # MIT License
+└── README.md            # Project documentation
 
+```
 ## Prerequisites
 
 - A running [Ollama](https://ollama.com) instance
@@ -53,7 +57,6 @@ Clone and Install:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python main.py
 ```
 
 # Automation with systemd
@@ -128,8 +131,8 @@ For more information on systemd timer syntax, see `man systemd.time`.
 ## Future Ideas / To-Do
 
     [ ] Switch to /api/chat instead of using both endpoints (/api/generate and /api/chat)
-    - [ ] Webhook Support: Replace polling with Telegram webhooks for better scalability (advanced).
-- [ ] Unit Tests: Add pytest for core functions (e.g., `ask_ollama`).
-- [ ] Dockerfile: Containerize the bot for easy deployment.
+    [ ] Webhook Support: Replace polling with Telegram webhooks for better scalability (advanced).
+    [ ] Unit Tests: Add pytest for core functions (e.g., `ask_ollama`).
+    [ ] Dockerfile: Containerize the bot for easy deployment.
     [ ] Multi-User Support: Allow multiple Chat IDs in a whitelist.
     [ ] Secret Management: Integration with Bitwarden CLI.
