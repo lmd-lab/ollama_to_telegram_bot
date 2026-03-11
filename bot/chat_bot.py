@@ -110,10 +110,13 @@ def load_settings():
 async def notify_me(text):
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
-                   json={"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"})
+            response = await client.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
+                json={"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
+            )
+            response.raise_for_status()
     except Exception as e:
-        logger.error(f"Telegram notification failed: {e}")
+        logger.error(f"Critical: notify_me failed. Original message: {text}. Error: {e}")
 
 def get_model(chat_id: int) -> str:
     return chat_settings.get(chat_id, {}).get("model", DEFAULT_MODEL)
@@ -158,21 +161,17 @@ async def query_ollama(chat_id: int, prompt: str) -> str:
 
     # Logic: Only messages AFTER offset, then limited by MAX_HISTORY
     visible_history = full_history[offset:]
-    recent_history = visible_history[-MAX_HISTORY:] if MAX_HISTORY > 0 else visible_history
-    
-    clean_history = [
-        {"role": m["role"], "content": m["content"]} 
-        for m in recent_history
-    ]
+    recent_history = visible_history[-MAX_HISTORY:] if len(visible_history) > MAX_HISTORY else visible_history
 
     system_instruction = {"role": "system", "content": "Keep responses short and concise."}
-    messages = [system_instruction] + clean_history + [{"role": "user", "content": prompt}]
+
+    messages = [system_instruction] + recent_history + [{"role": "user", "content": prompt}]
     
     payload = {
         "model": model,
         "messages": messages,
         "stream": False,
-        "keep_alive": "2m",
+        "keep_alive": "1m",
         "options": {
             #"num_predict": 500,  # Optional: Limit response length
             "temperature": 0.7,  # Optional: Adjust creativity
@@ -198,23 +197,23 @@ async def query_ollama(chat_id: int, prompt: str) -> str:
 
     except httpx.ConnectError as e:
         logger.error(f"Connection Error: Ollama unreachable at {OLLAMA_URL}. Details: {e}")
-        notify_me("The bot has a hiccup!")
+        await notify_me("The bot has a hiccup!")
         return "Ollama is unreachable. Is the service running?"
 
     except httpx.TimeoutException:
         logger.warning(f"Timeout: Model '{model}' did not respond within 120s.")
-        notify_me("The bot has a hiccup!")
+        await notify_me("The bot has a hiccup!")
         return f"Timeout: '{model}' is taking too long."
 
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP Error {e.response.status_code}: {e.response.text}")
-        notify_me("The bot has a hiccup!")
+        await notify_me("The bot has a hiccup!")
         return f"Ollama returned an error (HTTP {e.response.status_code})."
 
     except Exception as e:
         duration = (datetime.now() - start_time).total_seconds()
         logger.error(f"Unexpected Ollama Error after {duration:.2f}s: {e}", exc_info=True)
-        notify_me("The bot has a hiccup!")
+        await notify_me("The bot has a hiccup!")
         return f"An unexpected error occurred: {str(e)}"
 
 # Telegram-Handlers ----------------------------------------------------------------------
@@ -257,7 +256,8 @@ async def unload_model(model_name: str):
             logger.error(f"Error unloading {model_name}: {e}")
 
 async def model_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != CHAT_ID: return
+    if not is_authorized(update): return
+    chat_id = update.effective_chat.id
     
     query = update.callback_query
     await query.answer()
@@ -301,18 +301,22 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_chat.id
     history = get_history(chat_id)
-    offset = get_offset(chat_id)
+    offset = min(get_offset(chat_id), len(history))
     
     total = len(history)
-    visible = len(history[offset:])
+    visible_history = history[offset:]
+    visible = len(visible_history)
+    ai_sees = min(visible, MAX_HISTORY)  # NEU
     first_msg_time = history[0]["timestamp"].split("T")[0] if history else "No messages yet"
     
     await update.message.reply_text(
         f"Chat Statistics\n\n"
+        f"Current Model: `{get_model(chat_id)}`\n"
         f"First message: {first_msg_time}\n"
         f"Total archived messages: `{total}`\n"
-        f"Messages visible to AI: `{visible}`\n"
-        f"Current Model: `{get_model(chat_id)}`",
+        f"Offset: `{offset}`\n"
+        f"Messages since last /clear: `{visible}`\n"
+        f"Messages visible to AI: `{ai_sees}` / {MAX_HISTORY}\n",
         parse_mode="Markdown"
     )
 
