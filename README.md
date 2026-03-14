@@ -41,7 +41,8 @@ Typical use cases:
 Create a `.env` file with the following variables:
 
 ```env
-OLLAMA_URL=http://localhost:11434/api/generate
+OLLAMA_GENERATE_URL=http://localhost:11434/api/generate
+OLLAMA_CHAT_URL=http://localhost:11434/api/chat
 OLLAMA_MODEL=llama3.2:1b
 OLLAMA_PROMPT=Send a short, motivating message.
 MAX_HISTORY=20
