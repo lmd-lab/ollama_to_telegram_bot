@@ -2,6 +2,7 @@ import os
 import logging
 from pathlib import Path
 import httpx
+import time
 import json
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
@@ -83,12 +84,23 @@ chat_settings = {} # {chat_id (int): {"model": str, "offset": int}}
 def load_histories():
     """Loads chat histories from the JSON file on startup."""
     global chat_histories
-    if os.path.exists(HISTORY_FILE):
+    if not HISTORY_FILE.exists():
+        return
+
+    max_attempts = 3
+    for attempt in range(max_attempts):
         try:
             with open(HISTORY_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 chat_histories = {int(k): v for k, v in data.items()}
             logger.info("History loaded from file.")
+            return
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to load history (Attempt {attempt + 1}/{max_attempts}): {e}")
+            if attempt < max_attempts - 1:
+                time.sleep(0.05) 
+            else:
+                logger.error("Could not load history after 3 attempts. Starting with empty history.")
         except Exception as e:
             logger.error(f"Failed to load history: {e}")
 
@@ -104,17 +116,26 @@ def save_histories():
 def load_settings():
     """Loads the current chat settings (models, offsets) from a JSON file."""
     global chat_settings
-    if os.path.exists(SETTINGS_FILE):
+    max_attempts = 3
+    if not SETTINGS_FILE.exists():
+        logger.info("Settings file does not exist. Starting with empty settings.")
+        return
+
+    for attempt in range(max_attempts):
         try:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # Key wieder in int umwandeln
                 chat_settings = {int(k): v for k, v in data.items()}
-            logger.info("Settings loaded from file.")
+                return 
+        except (json.JSONDecodeError, BlockingIOError, PermissionError) as e:
+            logger.warning(f"Setting file blocked/truncated (Attempt {attempt + 1}/{max_attempts}): {e}")
+            if attempt < max_attempts - 1:
+                time.sleep(0.05) 
+            else:
+                logger.error("Could not load settings after 3 attempts. Using old values in RAM.")
         except Exception as e:
-            logger.error(f"Failed to load settings: {e}")
-    else:
-        logger.info("No settings file found. Starting with empty settings.")
+            logger.error(f"Unexpected error while loading settings: {e}")
+            break
 
 def save_settings():
     """Saves the current chat settings (models, offsets) to a JSON file."""
@@ -141,6 +162,7 @@ def get_model(chat_id: int) -> str:
     return chat_settings.get(chat_id, {}).get("model", DEFAULT_MODEL)
 
 def get_offset(chat_id: int) -> int:
+    load_settings()
     return chat_settings.get(chat_id, {}).get("offset", 0)
 
 def set_model(chat_id: int, model_key: str):
@@ -155,6 +177,7 @@ def set_offset(chat_id: int, offset: int):
     save_settings()
 
 def get_history(chat_id: int) -> list[dict]:
+    load_histories()
     return chat_histories.setdefault(chat_id, [])
 
 def append_message(chat_id: int, role: str, content: str):
@@ -346,7 +369,6 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     visible_history = history[offset:]
     visible = len(visible_history)
     ai_sees = min(visible, MAX_HISTORY) 
-    first_msg_time = history[0]["timestamp"].split("T")[0] if history else "No messages yet"
     first_msg_time = history[0]["timestamp"].split("T")[0] if history else "No messages yet"
     
     await update.message.reply_text(

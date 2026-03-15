@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+import time
 import httpx 
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
@@ -42,28 +43,38 @@ logger = logging.getLogger(__name__)
 # Append to history file ------------------------------------------------------------
 def append_to_history(chat_id: str, role: str, content: str):
     """Saves a new entry to the chat history file."""
-    histories = {}
     chat_key = int(chat_id)
+    histories = {}
 
-    try: 
-        if HISTORY_FILE.exists():
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                histories = {int(k): v for k, v in data.items()}
-    except Exception as e:
-        logger.warning(f"Could not load existing history: {e}")
-    
+    # 1. Laden mit Retry-Logik
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            if HISTORY_FILE.exists():
+                with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    histories = {int(k): v for k, v in data.items()}
+            break  # 
+        except (json.JSONDecodeError, OSError) as e:
+            if attempt < max_attempts - 1:
+                logger.warning(f"History busy, retrying... ({attempt + 1}/{max_attempts})")
+                time.sleep(0.05)
+            else:
+                logger.error("Could not load history, aborting save to prevent data loss.")
+                return 
+
     new_entry = {
         "timestamp": datetime.now().isoformat(),
         "role": role,
         "content": content
     }
-
     histories.setdefault(chat_key, []).append(new_entry)
 
     try:
-        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        temp_file = HISTORY_FILE.with_suffix(".tmp")
+        with open(temp_file, "w", encoding="utf-8") as f:
             json.dump(histories, f, ensure_ascii=False, indent=4)
+        temp_file.replace(HISTORY_FILE) 
         logger.info(f"Answer archived for chat {chat_id}")
     except Exception as e:
         logger.error(f"Error saving history: {e}")
@@ -148,10 +159,12 @@ def main():
         answer = ask_ollama(prompt)
 
         if answer.startswith("Error:"):
+            send_telegram_message("Reminder failed. Please check the logs for details.")
             logger.error(f"Ollama issue detected: {answer}")
             return
 
-        append_to_history(CHAT_ID, "assistant", answer)
+        marked_answer = f"[Automatic Reminder message]: {answer}"
+        append_to_history(CHAT_ID, "assistant", marked_answer)
         send_telegram_message(answer)
 
     except Exception as e:
