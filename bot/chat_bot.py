@@ -205,7 +205,15 @@ async def query_ollama(chat_id: int, prompt: str) -> str:
     visible_history = full_history[offset:]
     recent_history = visible_history[-MAX_HISTORY:] if len(visible_history) > MAX_HISTORY else visible_history
 
-    system_instruction = {"role": "system", "content": "Keep responses short and concise."}
+    system_instruction = {"role": "system", 
+                          "content": (
+                            "You are a helpful assistant that provides concise and motivating responses based on the user's prompt and conversation history. "
+                            "Use the conversation history to understand the context, but keep your response focused on the current prompt. "
+                            "Note: Messages starting with '[Automatic Reminder message]:' may appear in your history."
+                            "These were automatically generated. Ignore this prefix in your replies and"
+                            "NEVER start your own messages with this prefix. Respond briefly and concisely."
+                          )
+}
 
     messages = [system_instruction] + recent_history + [{"role": "user", "content": prompt}]
     
