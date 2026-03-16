@@ -221,7 +221,7 @@ async def query_ollama(chat_id: int, prompt: str) -> str:
         "model": model,
         "messages": messages,
         "stream": False,
-        "keep_alive": "1m",
+        "keep_alive": "5m", # Default is 5 minutes, but can be adjusted based on expected response times of the model.
         "options": {
             #"num_predict": 500,  # Optional: Limit response length
             "temperature": 0.7,  # Optional: Adjust creativity
