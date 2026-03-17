@@ -23,7 +23,7 @@
 .venv/
 __pycache__/
 
-# Ignore sttings, history and log files
+# Ignore settings, history and log files
 *.json
 *.log
 logs/

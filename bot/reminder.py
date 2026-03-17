@@ -2,7 +2,10 @@ import os
 import logging
 import json
 import time
-import httpx 
+import httpx
+from filelock import FileLock, Timeout
+from locks import HISTORY_LOCK
+from utils import safe_load_json
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from pathlib import Path
@@ -13,11 +16,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(dotenv_path=BASE_DIR / ".env")
 
 HISTORY_FILE = BASE_DIR / "chat_history.json"
+# add settings to used selected model
+
 LOG_DIR = BASE_DIR / "logs"
 LOG_FILE = LOG_DIR / "generate_script.log"
 
 OLLAMA_URL = os.getenv("OLLAMA_GENERATE_URL", "http://localhost:11434/api/generate")
 MODEL = os.getenv("OLLAMA_MODEL")
+if not MODEL:
+    raise RuntimeError("OLLAMA_MODEL is not set in .env")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -44,40 +51,33 @@ logger = logging.getLogger(__name__)
 def append_to_history(chat_id: str, role: str, content: str):
     """Saves a new entry to the chat history file."""
     chat_key = int(chat_id)
-    histories = {}
-
-    # 1. Laden mit Retry-Logik
-    max_attempts = 3
-    for attempt in range(max_attempts):
-        try:
-            if HISTORY_FILE.exists():
-                with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    histories = {int(k): v for k, v in data.items()}
-            break  # 
-        except (json.JSONDecodeError, OSError) as e:
-            if attempt < max_attempts - 1:
-                logger.warning(f"History busy, retrying... ({attempt + 1}/{max_attempts})")
-                time.sleep(0.05)
-            else:
-                logger.error("Could not load history, aborting save to prevent data loss.")
-                return 
-
-    new_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "role": role,
-        "content": content
-    }
-    histories.setdefault(chat_key, []).append(new_entry)
 
     try:
-        temp_file = HISTORY_FILE.with_suffix(".tmp")
-        with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump(histories, f, ensure_ascii=False, indent=4)
-        temp_file.replace(HISTORY_FILE) 
-        logger.info(f"Answer archived for chat {chat_id}")
+        with HISTORY_LOCK:
+            chat_histories = safe_load_json(HISTORY_FILE)
+            if chat_histories:
+                logger.info("Chat histories loaded successfully.")
+            else:
+                logger.info("No chat histories found. Starting fresh.")
+
+            chat_histories.setdefault(chat_key, []).append({
+                "timestamp": datetime.now().isoformat(),
+                "role": role,
+                "content": content
+            })
+
+            temp_file = HISTORY_FILE.with_suffix(".tmp")
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(chat_histories, f, ensure_ascii=False, indent=4)
+            temp_file.replace(HISTORY_FILE)
+            logger.info(f"Answer archived for chat {chat_id}")
+
+    except Timeout:
+        logger.error(f"Could not acquire file lock for {HISTORY_FILE} – another process is blocking.")
+    except OSError as e:
+        logger.error(f"File system error while saving history for chat {chat_id}: {e}")
     except Exception as e:
-        logger.error(f"Error saving history: {e}")
+        logger.error(f"Unexpected error in append_to_history for chat {chat_id}: {e}", exc_info=True)
 
 # Functions --------------------------------------------------------------------------
 def get_prompt() -> str:
@@ -120,7 +120,7 @@ def ask_ollama(prompt: str) -> str:
 
             return answer
     except httpx.TimeoutException:
-        return "Error: Ollama request timed out (60s)."
+        return "Error: Ollama request timed out (120s)."
     except httpx.RequestError as e:
         return f"Error: Request failed - {e}"
     except ValueError:

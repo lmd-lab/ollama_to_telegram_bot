@@ -4,9 +4,12 @@ from pathlib import Path
 import httpx
 import time
 import json
+from filelock import FileLock
+from locks import HISTORY_LOCK
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from dotenv import load_dotenv
+from utils import safe_load_json
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ChatAction
 from telegram.ext import (
@@ -17,6 +20,7 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+
 
 # Config & Paths ---------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -33,7 +37,6 @@ file_handler = RotatingFileHandler(
     backupCount=5,         
     encoding="utf-8"
 )
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,31 +87,18 @@ chat_settings = {} # {chat_id (int): {"model": str, "offset": int}}
 def load_histories():
     """Loads chat histories from the JSON file on startup."""
     global chat_histories
-    if not HISTORY_FILE.exists():
-        return
-
-    max_attempts = 3
-    for attempt in range(max_attempts):
-        try:
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                chat_histories = {int(k): v for k, v in data.items()}
-            logger.info("History loaded from file.")
-            return
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"Failed to load history (Attempt {attempt + 1}/{max_attempts}): {e}")
-            if attempt < max_attempts - 1:
-                time.sleep(0.05) 
-            else:
-                logger.error("Could not load history after 3 attempts. Starting with empty history.")
-        except Exception as e:
-            logger.error(f"Failed to load history: {e}")
+    chat_histories = safe_load_json(HISTORY_FILE)
+    if chat_histories:
+        logger.info(f"Loaded chat histories.")
+    else:
+        logger.info("No chat histories found. Starting fresh.")
 
 def save_histories():
     """Saves the current chat histories to a JSON file."""
     try:
-        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-            json.dump(chat_histories, f, ensure_ascii=False, indent=4)
+        with HISTORY_LOCK:
+            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+                json.dump(chat_histories, f, ensure_ascii=False, indent=4)
         logger.info("History saved to file.")
     except Exception as e:
         logger.error(f"Failed to save history: {e}")
@@ -116,26 +106,11 @@ def save_histories():
 def load_settings():
     """Loads the current chat settings (models, offsets) from a JSON file."""
     global chat_settings
-    max_attempts = 3
-    if not SETTINGS_FILE.exists():
-        logger.info("Settings file does not exist. Starting with empty settings.")
-        return
-
-    for attempt in range(max_attempts):
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                chat_settings = {int(k): v for k, v in data.items()}
-                return 
-        except (json.JSONDecodeError, BlockingIOError, PermissionError) as e:
-            logger.warning(f"Setting file blocked/truncated (Attempt {attempt + 1}/{max_attempts}): {e}")
-            if attempt < max_attempts - 1:
-                time.sleep(0.05) 
-            else:
-                logger.error("Could not load settings after 3 attempts. Using old values in RAM.")
-        except Exception as e:
-            logger.error(f"Unexpected error while loading settings: {e}")
-            break
+    chat_settings = safe_load_json(SETTINGS_FILE)
+    if chat_settings:
+        logger.info("Settings loaded successfully.")
+    else:
+        logger.info("Using default/empty settings.")
 
 def save_settings():
     """Saves the current chat settings (models, offsets) to a JSON file."""
@@ -162,7 +137,6 @@ def get_model(chat_id: int) -> str:
     return chat_settings.get(chat_id, {}).get("model", DEFAULT_MODEL)
 
 def get_offset(chat_id: int) -> int:
-    load_settings()
     return chat_settings.get(chat_id, {}).get("offset", 0)
 
 def set_model(chat_id: int, model_key: str):
