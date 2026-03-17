@@ -20,7 +20,9 @@ Typical use cases:
 .
 ├── bot/
 │   ├── chat_bot.py      # Main interactive bot
-│   └── reminder.py      # Scheduled reminder script
+│   ├── reminder.py      # Scheduled reminder script
+│   ├── locks.py         # Shared file lock for concurrent history access
+│   └── utils.py         # Shared utility functions (e.g. safe JSON loading)
 ├── logs/                # Local log files (ignored by git)
 ├── systemd/             # Service & Timer templates
 ├── .env                 # Local configuration  (API keys, etc.)
@@ -93,7 +95,7 @@ systemctl list-timers --all | grep ollama
 **Manual Test:**
 Trigger the reminder immediately without waiting for the timer:
 ```bash
-sudo systemctl start ollama_chat.service
+sudo systemctl start ollama_reminder.service
 ```
 
 **View live logs:**
@@ -130,6 +132,9 @@ systemd-analyze calendar "*-*-* 08,10,12,14,16,18,20,22,00:00:00"
 For more information on systemd timer syntax, see `man systemd.time`.
 
 ## Future Ideas / To-Dos
+
+    [x] Shared utility module for safe JSON loading
+    [x] File locking to prevent race conditions between bot and reminder
 
     [ ] Database Migration: Replace the JSON-based history storage with SQLite to prevent O(n) search operations and memory bottlenecks as the history grows.
     [ ] Data Retention Policy: Implement an automated cleanup logic to prune or archive chat logs older than 30 days.
