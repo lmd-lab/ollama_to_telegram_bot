@@ -5,7 +5,7 @@ import httpx
 import time
 import json
 from filelock import FileLock
-from locks import HISTORY_LOCK
+from utils import HISTORY_LOCK
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from dotenv import load_dotenv

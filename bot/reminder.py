@@ -4,7 +4,7 @@ import json
 import time
 import httpx
 from filelock import FileLock, Timeout
-from locks import HISTORY_LOCK
+from utils import HISTORY_LOCK
 from utils import safe_load_json
 from logging.handlers import RotatingFileHandler
 from datetime import datetime

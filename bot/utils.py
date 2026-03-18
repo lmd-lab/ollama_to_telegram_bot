@@ -1,8 +1,14 @@
 import logging
 import json
 import time
+from filelock import FileLock
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# locks for safe file access
+BASE_DIR = Path(__file__).resolve().parent.parent
+HISTORY_LOCK = FileLock(str(BASE_DIR / "chat_history.json") + ".lock")
 
 def safe_load_json(file_path, max_attempts=5):
     """Tries to safely load a JSON file, even if other processes are writing to it."""
