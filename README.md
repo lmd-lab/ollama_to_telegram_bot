@@ -146,24 +146,43 @@ For more information on systemd timer syntax, see `man systemd.time`.
 
 ## Future Ideas / To-Dos
 
-    [x] Shared utility module for safe JSON loading
-    [x] File locking to prevent race conditions between bot and reminder
-    [x] User memory: periodic profile updates via memory_service.py
-    [x] Memory: integrate user profile into chat_bot context window
+**Architecture & Refactoring**
 
-    [ ] Database Migration: Replace the JSON-based history storage with SQLite to prevent O(n) search operations and memory bottlenecks as the history grows.
-    [ ] Data Retention Policy: Implement an automated cleanup logic to prune or archive chat logs older than 30 days.
-    [ ] Context Window Management: 
-      [ ] Implement Token-based history slicing for more precise context control.
-      [ ] Conversation Summarization: Automatically generate a summary of older messages when the context limit is reached, preserving long-term "memory" while keeping the processing load low.
+   - [ ] Centralized Logging Module: Move the logging configuration from chat_bot.py into a dedicated logging_utils.py to ensure consistent formatting across all scripts (Bot, Reminder, Memory).
+   - [ ] Database Migration: Replace the JSON-based history storage with SQLite to prevent O(n) search operations and memory bottlenecks as the history grows.
+   - [ ] Data Retention Policy: Implement an automated cleanup logic to prune or archive chat logs older than 30 days.
 
-    [ ] Unit Tests: Add pytest for core functions (e.g., `ask_ollama`).
-    [ ] Dockerfile: Containerize the bot for easy deployment.
+**Intelligence & Context Management**
 
-    [ ] Multi-User Support: Allow multiple Chat IDs in a whitelist.
-    [ ] Webhook Support: Replace polling with Telegram webhooks for better scalability (advanced).
-    [ ] Secret Management: Integration with Bitwarden CLI.
+   - [ ] Context Window Optimization: - Implement Token-based history slicing for more precise context control using tiktoken.
 
+      -  Conversation Summarization: Automatically generate a summary of older messages when the context limit is reached, preserving long-term "memory" while keeping the processing load low.
+   - [ ] Advanced User Profiling: Enhance memory_service.py to detect shifting user interests and projects over time.
+
+**Engineering & DevOps (Stability)**
+
+   - [ ] Unit Testing: Implement a testing suite using pytest to verify core logic (e.g., history filtering, Ollama prompt construction, and utility functions).
+   - [ ] Dockerization: Create a Dockerfile and docker-compose.yaml to containerize the bot, making it easy to deploy on any server (or a Raspberry Pi) without manual environment setup.
+   - [ ] Secret Management: Move sensitive data from .env to a more secure integration (e.g., Bitwarden CLI or a dedicated Vault).
+
+**Access & Privacy**
+
+   - [ ] Multi-User Support: Implement a robust whitelist system to allow multiple authorized Chat IDs to interact with the bot.
+   - [ ] Granular Permissions: Define user-specific settings (e.g., User A can use llama3, User B is restricted to qwen to save resources).
+   - [ ] Isolated Histories: Ensure strict data separation in chat_history.json and user_profiles.json so no user can access another's data.
+
+**The Big Pivot: Matrix Integration / shift to Matrix**
+
+   - [ ] Protocol Shift: Migrate the backend from Telegram to the Matrix Protocol for enhanced privacy and decentralization.
+   - [ ] Client Independence: Enable seamless interaction through open-source Matrix clients like Element or FluffyChat.
+   - [ ] Self-Hosting Sovereignty: Build a fully independent, local AI assistant ecosystem that doesn't rely on third-party messenger infrastructure.
+
+**Done:**
+
+   - [x] Shared utility module for safe JSON loading
+   - [x] File locking to prevent race conditions between bot and reminder
+   - [x] User memory: periodic profile updates via memory_service.py
+   - [x] Memory: integrate user profile into chat_bot context window
 
 Note: Dual API usage is a design decision: /api/generate is used for standalone tasks where a full conversation context is unnecessary, reducing overhead; api/chat is used for the main conversation flow to leverage structured message history and role-based prompting.
 
